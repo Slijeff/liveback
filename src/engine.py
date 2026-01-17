@@ -83,8 +83,9 @@ class BacktestEngine(Engine):
                 if self.risk_manager and not self.risk_manager.validate_order(order, self.portfolio):
                     continue  # Skip invalid orders
                 
-                # Send order to execution client
-                fill = self.execution_client.send_order(order)
+                # Send order to execution client (use current event price)
+                current_price = event.close_price if order.symbol == event.symbol else None
+                fill = self.execution_client.send_order(order, current_price=current_price)
                 
                 # Apply fill to portfolio
                 self.portfolio.apply_fill(fill)
@@ -167,7 +168,9 @@ class LiveEngine(Engine):
                     continue  # Skip invalid orders
                 
                 # Send order to execution client (live mode: async handling would be better)
-                fill = self.execution_client.send_order(order)
+                # Use current event price if symbol matches
+                current_price = event.trade_price if order.symbol == event.symbol else None
+                fill = self.execution_client.send_order(order, current_price=current_price)
                 
                 # Apply fill to portfolio
                 self.portfolio.apply_fill(fill)

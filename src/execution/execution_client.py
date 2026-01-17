@@ -9,11 +9,12 @@ class ExecutionClient(ABC):
     """Abstract interface for execution clients (backtest simulation and live brokers)."""
     
     @abstractmethod
-    def send_order(self, order: Order) -> Fill:
+    def send_order(self, order: Order, current_price: Optional[float] = None) -> Fill:
         """Send an order for execution.
         
         Args:
             order: Order to execute
+            current_price: Optional current market price (useful for backtest simulation)
             
         Returns:
             Fill: Fill event representing the executed order
@@ -44,27 +45,33 @@ class BrokerSim(ExecutionClient):
         """
         self.slippage_model = slippage_model
         self._order_id_counter = 0
+        self._last_prices = {}  # Track last seen price per symbol
 
-    def send_order(self, order: Order) -> Fill:
+    def send_order(self, order: Order, current_price: Optional[float] = None) -> Fill:
         """Simulate order execution at current market price.
         
         Args:
             order: Order to simulate
+            current_price: Optional current market price for the symbol (if not provided, uses last seen price)
             
         Returns:
             Fill: Simulated fill event
         """
-        # TODO: Implement order simulation logic
-        # Should execute at next tick/last tick/mid + slippage
-        # For now, return a placeholder
         from datetime import datetime
         from src.types import OrderSide
         
         self._order_id_counter += 1
         order_id = f"SIM_{self._order_id_counter}"
         
-        # Placeholder: real implementation should use current market data
-        fill_price = 100.0  # Should come from market data
+        # Use provided price, last seen price, or default
+        if current_price is not None:
+            fill_price = current_price
+            self._last_prices[order.symbol] = current_price
+        elif order.symbol in self._last_prices:
+            fill_price = self._last_prices[order.symbol]
+        else:
+            raise ValueError(f"No price available for {order.symbol}. Provide current_price or process market data first.")
+        
         slippage = 0.0 if not self.slippage_model else self.slippage_model(order)
         
         return Fill(
