@@ -8,12 +8,12 @@ from src.strategy.strategy import Strategy
 from src.portfolio import Portfolio
 from src.risk_manager import RiskManager
 from src.event_bus import EventBus
-from src.types import StrategyContext, Event, Order
+from src.types import StrategyContext
 
 
 class Engine(ABC):
     """Base engine interface."""
-    
+
     @abstractmethod
     def run(self) -> None:
         """Run the engine (blocking)."""
@@ -22,18 +22,18 @@ class Engine(ABC):
 
 class BacktestEngine(Engine):
     """Event-driven backtest engine."""
-    
+
     def __init__(
         self,
         data_client: DataClient,
         execution_client: ExecutionClient,
         strategy: Strategy,
         portfolio: Portfolio,
-        risk_manager: Optional[RiskManager],
-        event_bus: EventBus
+        risk_manager: Optional[RiskManager] = None,
+        event_bus: Optional[EventBus] = None,
     ):
         """Initialize backtest engine.
-        
+
         Args:
             data_client: Data client providing historical data stream
             execution_client: Execution client (simulated broker)
@@ -47,13 +47,13 @@ class BacktestEngine(Engine):
         self.strategy = strategy
         self.portfolio = portfolio
         self.risk_manager = risk_manager
-        self.event_bus = event_bus
-        
+        self.event_bus = event_bus if event_bus is not None else EventBus()
+
         # Initialize strategy
         context = StrategyContext(
             portfolio=portfolio,
             data_client=data_client,
-            execution_client=execution_client
+            execution_client=execution_client,
         )
         self.strategy.initialize(context)
 
@@ -63,44 +63,54 @@ class BacktestEngine(Engine):
         for event in self.data_client.stream():
             # Publish event to event bus
             self.event_bus.publish(event)
-            
+
             # Update unrealized PnL if we have price data
-            price = event.close_price  # Works for both bars (close) and ticks (trade_price)
+            price = (
+                event.close_price
+            )  # Works for both bars (close) and ticks (trade_price)
             if price is not None:
                 current_prices = {event.symbol: price}
                 self.portfolio.update_unrealized_pnl(current_prices)
                 self.portfolio.record_equity()
-            
+
             # Handle event in strategy
             self.strategy.on_event(event)
-            
+
             # Get orders from strategy
             orders = self.strategy.get_orders()
-            
+
             # Process each order
             for order in orders:
                 # Validate with risk manager if present
-                if self.risk_manager and not self.risk_manager.validate_order(order, self.portfolio):
+                if self.risk_manager and not self.risk_manager.validate_order(
+                    order, self.portfolio
+                ):
                     continue  # Skip invalid orders
-                
+
                 # Send order to execution client (use current event price)
-                current_price = event.close_price if order.symbol == event.symbol else None
-                fill = self.execution_client.send_order(order, current_price=current_price)
-                
+                current_price = (
+                    event.close_price if order.symbol == event.symbol else None
+                )
+                fill = self.execution_client.send_order(
+                    order, current_price=current_price
+                )
+
                 # Apply fill to portfolio
                 self.portfolio.apply_fill(fill)
-                
+
                 # Notify strategy of fill
                 self.strategy.on_fill(fill)
-                
+
                 # Update risk manager peak equity
                 if self.risk_manager:
-                    self.risk_manager.update_peak_equity(self.portfolio.get_total_equity())
+                    self.risk_manager.update_peak_equity(
+                        self.portfolio.get_total_equity()
+                    )
 
 
 class LiveEngine(Engine):
     """Live trading engine for real-time execution."""
-    
+
     def __init__(
         self,
         data_client: DataClient,
@@ -109,10 +119,10 @@ class LiveEngine(Engine):
         portfolio: Portfolio,
         risk_manager: Optional[RiskManager],
         event_bus: EventBus,
-        symbols: List[str]
+        symbols: List[str],
     ):
         """Initialize live engine.
-        
+
         Args:
             data_client: Data client providing real-time data
             execution_client: Execution client (real broker)
@@ -129,12 +139,12 @@ class LiveEngine(Engine):
         self.risk_manager = risk_manager
         self.event_bus = event_bus
         self.symbols = symbols
-        
+
         # Initialize strategy
         context = StrategyContext(
             portfolio=portfolio,
             data_client=data_client,
-            execution_client=execution_client
+            execution_client=execution_client,
         )
         self.strategy.initialize(context)
 
@@ -142,42 +152,50 @@ class LiveEngine(Engine):
         """Run real-time trading loop."""
         # Subscribe to real-time data feed
         self.data_client.subscribe(self.symbols, self.event_bus.publish)
-        
+
         # Real-time trading loop
         while True:
             # Get next event from event bus
             event = self.event_bus.get_next_event()
             if event is None:
                 continue
-            
+
             # Update unrealized PnL if we have price data
             if event.trade_price:
                 current_prices = {event.symbol: event.trade_price}
                 self.portfolio.update_unrealized_pnl(current_prices)
-            
+
             # Handle event in strategy
             self.strategy.on_event(event)
-            
+
             # Get orders from strategy
             orders = self.strategy.get_orders()
-            
+
             # Process each order
             for order in orders:
                 # Validate with risk manager if present
-                if self.risk_manager and not self.risk_manager.validate_order(order, self.portfolio):
+                if self.risk_manager and not self.risk_manager.validate_order(
+                    order, self.portfolio
+                ):
                     continue  # Skip invalid orders
-                
+
                 # Send order to execution client (live mode: async handling would be better)
                 # Use current event price if symbol matches
-                current_price = event.trade_price if order.symbol == event.symbol else None
-                fill = self.execution_client.send_order(order, current_price=current_price)
-                
+                current_price = (
+                    event.trade_price if order.symbol == event.symbol else None
+                )
+                fill = self.execution_client.send_order(
+                    order, current_price=current_price
+                )
+
                 # Apply fill to portfolio
                 self.portfolio.apply_fill(fill)
-                
+
                 # Notify strategy of fill
                 self.strategy.on_fill(fill)
-                
+
                 # Update risk manager peak equity
                 if self.risk_manager:
-                    self.risk_manager.update_peak_equity(self.portfolio.get_total_equity())
+                    self.risk_manager.update_peak_equity(
+                        self.portfolio.get_total_equity()
+                    )

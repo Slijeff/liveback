@@ -1,21 +1,21 @@
 """Risk management for position sizing and validation."""
 
-from typing import Optional, Dict
+from typing import Optional
 from src.types import Order, OrderSide
 from src.portfolio import Portfolio
 
 
 class RiskManager:
     """Validates orders for risk constraints (position limits, margin, etc.)."""
-    
+
     def __init__(
         self,
         max_position_size: Optional[float] = None,
         max_portfolio_exposure: Optional[float] = None,
-        max_drawdown: Optional[float] = None
+        max_drawdown: Optional[float] = None,
     ):
         """Initialize risk manager.
-        
+
         Args:
             max_position_size: Maximum position size per symbol (absolute value)
             max_portfolio_exposure: Maximum total portfolio exposure
@@ -25,14 +25,14 @@ class RiskManager:
         self.max_portfolio_exposure = max_portfolio_exposure
         self.max_drawdown = max_drawdown
         self.peak_equity: Optional[float] = None
-        
+
     def validate_order(self, order: Order, portfolio: Portfolio) -> bool:
         """Validate an order against risk constraints.
-        
+
         Args:
             order: Order to validate
             portfolio: Current portfolio state
-            
+
         Returns:
             True if order passes risk checks, False otherwise
         """
@@ -44,10 +44,10 @@ class RiskManager:
                 new_quantity += order.quantity
             else:
                 new_quantity -= order.quantity
-                
+
             if abs(new_quantity) > self.max_position_size:
                 return False
-        
+
         # Check portfolio exposure limit
         if self.max_portfolio_exposure is not None:
             # Simple check: would this order exceed exposure?
@@ -57,25 +57,28 @@ class RiskManager:
                 for pos in portfolio.positions.values()
             )
             # Approximate new exposure (using order quantity)
-            if current_exposure + order.quantity * (order.limit_price or 0) > self.max_portfolio_exposure:
+            if (
+                current_exposure + order.quantity * (order.limit_price or 0)
+                > self.max_portfolio_exposure
+            ):
                 return False
-        
+
         # Check drawdown limit
         if self.max_drawdown is not None:
             current_equity = portfolio.get_total_equity()
             if self.peak_equity is None or current_equity > self.peak_equity:
                 self.peak_equity = current_equity
-            
+
             if self.peak_equity is not None:
                 drawdown = (self.peak_equity - current_equity) / self.peak_equity
                 if drawdown > self.max_drawdown:
                     return False
-        
+
         return True
-    
+
     def update_peak_equity(self, equity: float) -> None:
         """Update peak equity for drawdown tracking.
-        
+
         Args:
             equity: Current equity value
         """
