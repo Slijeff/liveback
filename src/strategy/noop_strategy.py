@@ -1,5 +1,6 @@
 """A buy-and-hold strategy that buys once at the start."""
 
+from loguru import logger
 from src.strategy.strategy import Strategy
 from src.types import Event, Fill, Order, OrderSide, OrderType
 
@@ -24,9 +25,6 @@ class NoOpStrategy(Strategy):
             event: Market data event (bar/tick)
         """
         price = event.close_price or event.trade_price
-        print(
-            f"[Strategy] Received {event.event_type.value} for {event.symbol}: ${price:.2f}"
-        )
 
         # Place buy order on first event only
         if not self.has_placed_initial_order and price is not None:
@@ -45,12 +43,12 @@ class NoOpStrategy(Strategy):
                 )
                 self.create_order(order)
                 self.has_placed_initial_order = True
-                print(
-                    f"[Strategy] Placing initial buy order: {quantity} shares of {event.symbol} @ ~${price:.2f}"
+                logger.info(
+                    f"Placing initial buy order: {quantity} shares of {event.symbol} @ ~${price:.2f}"
                 )
             else:
-                print(
-                    f"[Strategy] Not enough cash to buy even 1 share (need ${price:.2f}, have ${available_cash:.2f})"
+                logger.info(
+                    f"Not enough cash to buy even 1 share (need ${price:.2f}, have ${available_cash:.2f})"
                 )
 
     def on_fill(self, fill: Fill) -> None:
@@ -59,6 +57,6 @@ class NoOpStrategy(Strategy):
         Args:
             fill: Fill event representing an executed order
         """
-        print(
-            f"[Strategy] Received fill: {fill.side.value} {fill.quantity} {fill.symbol} @ ${fill.price:.2f}"
+        logger.debug(
+            f"Received fill: {fill.side.value} {fill.quantity} {fill.symbol} @ ${fill.price:.2f}"
         )

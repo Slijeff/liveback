@@ -1,6 +1,7 @@
 """Trading engines for backtest and live modes."""
 
 from abc import ABC, abstractmethod
+import sys
 from typing import List, Optional
 from src.data.data_client import DataClient
 from src.execution.execution_client import ExecutionClient
@@ -9,10 +10,12 @@ from src.portfolio import Portfolio
 from src.risk_manager import RiskManager
 from src.event_bus import EventBus
 from src.types import StrategyContext
-
+from loguru import logger
 
 class Engine(ABC):
     """Base engine interface."""
+    def set_logging_level(self, level: str):
+        logger.configure(handlers=[{"sink": sys.stdout, "level": level}])
 
     @abstractmethod
     def run(self) -> None:
@@ -29,6 +32,7 @@ class BacktestEngine(Engine):
         execution_client: ExecutionClient,
         strategy: Strategy,
         portfolio: Portfolio,
+        logging_level: str = "INFO",
         risk_manager: Optional[RiskManager] = None,
         event_bus: Optional[EventBus] = None,
     ):
@@ -48,6 +52,7 @@ class BacktestEngine(Engine):
         self.portfolio = portfolio
         self.risk_manager = risk_manager
         self.event_bus = event_bus if event_bus is not None else EventBus()
+        self.set_logging_level(logging_level)
 
         # Initialize strategy
         context = StrategyContext(

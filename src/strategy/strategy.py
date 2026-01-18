@@ -3,6 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import List
 from src.types import StrategyContext, Event, Fill, Order, OrderId
+from loguru import logger
 
 
 class Strategy(ABC):
@@ -55,7 +56,7 @@ class Strategy(ABC):
         self.pending_orders.append(order)
         self._order_id_counter += 1
         order_id = f"{self.__class__.__name__}_{self._order_id_counter}"
-        print(f"[Strategy] Order created (but not queued): {order_id}")
+        logger.debug(f"Order created: {order_id}")
         return order_id
 
     def get_orders(self) -> List[Order]:
