@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from typing import Dict, List, Tuple
-from src.types import Fill, OrderSide, Trade, Position
+from src.types import Fill, OrderSide, Trade, Position, FillEvent, PriceUpdateEvent
 
 
 class Portfolio:
@@ -19,6 +19,28 @@ class Portfolio:
         self.positions: Dict[str, Position] = {}
         self.equity_curve: List[Tuple[datetime, float]] = []
         self.trades: List[Trade] = []
+
+    def on_fill(self, event: FillEvent) -> None:
+        """Handle a FillEvent by applying the fill to the portfolio.
+
+        This method is designed to be subscribed to the event bus.
+
+        Args:
+            event: FillEvent containing the fill data
+        """
+        self.apply_fill(event.fill)
+
+    def on_price_update(self, event: PriceUpdateEvent) -> None:
+        """Handle a PriceUpdateEvent by updating unrealized PnL and recording equity.
+
+        This method is designed to be subscribed to the event bus.
+
+        Args:
+            event: PriceUpdateEvent containing price and timestamp
+        """
+        current_prices = {event.symbol: event.price}
+        self.update_unrealized_pnl(current_prices)
+        self.record_equity(event.timestamp)
 
     def apply_fill(self, fill: Fill) -> None:
         """Apply a fill to update positions and cash.

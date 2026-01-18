@@ -29,7 +29,10 @@ LiveBack is a Python-based framework designed for seamless backtesting and live 
    ```bash
    pre-commit install
    ```
-
+4. Testing:
+   ```bash
+   uv run -m unittest discover -s src/tests
+   ```
 ## Project Structure
 - `design.md`: Project design document
 - `requirements.uv`: Dependency list for the project

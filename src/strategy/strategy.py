@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from typing import List
-from src.types import StrategyContext, Event, Fill, Order, OrderId
+from src.types import StrategyContext, Event, Fill, Order, OrderId, FillEvent
 from loguru import logger
 
 
@@ -40,6 +40,16 @@ class Strategy(ABC):
             fill: Fill event representing an executed order
         """
         pass
+
+    def on_fill_event(self, event: FillEvent) -> None:
+        """Handle a FillEvent by delegating to on_fill.
+
+        This method is designed to be subscribed to the event bus.
+
+        Args:
+            event: FillEvent containing fill data
+        """
+        self.on_fill(event.fill)
 
     def create_order(self, order: Order) -> OrderId:
         """Create an order (validates and returns order ID or raises).

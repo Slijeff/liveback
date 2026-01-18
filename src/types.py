@@ -149,3 +149,57 @@ class Trade:
     slippage: float
     commission: float
     pnl: float
+
+
+# ============================================================================
+# Domain Events for event bus
+# ============================================================================
+
+
+@dataclass
+class DomainEvent:
+    """Base class for domain events."""
+
+    pass
+
+
+@dataclass
+class FillEvent(DomainEvent):
+    """Event published when an order is filled.
+
+    Subscribers should include:
+    - Portfolio (to apply_fill)
+    - Strategy (to on_fill)
+    - RiskManager (to update peak equity)
+    - ReportGenerator (to record fills)
+    """
+
+    fill: Fill
+    timestamp: datetime
+
+
+@dataclass
+class PriceUpdateEvent(DomainEvent):
+    """Event published when a price update occurs (from market data).
+
+    Subscribers should include:
+    - Portfolio (to update_unrealized_pnl and record_equity)
+    - Risk tracking components
+    """
+
+    symbol: str
+    price: float
+    timestamp: datetime
+
+
+@dataclass
+class EquityUpdateEvent(DomainEvent):
+    """Event published when portfolio equity changes.
+
+    Subscribers should include:
+    - RiskManager (to update_peak_equity)
+    - Monitoring/alerting systems
+    """
+
+    equity: float
+    timestamp: datetime

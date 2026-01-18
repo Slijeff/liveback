@@ -11,7 +11,14 @@ from src.strategy.strategy import Strategy
 from src.portfolio import Portfolio
 from src.risk_manager import RiskManager
 from src.event_bus import EventBus
-from src.types import StrategyContext, Order, OrderSide
+from src.types import (
+    StrategyContext,
+    Order,
+    OrderSide,
+    FillEvent,
+    PriceUpdateEvent,
+    EquityUpdateEvent,
+)
 from loguru import logger
 
 
@@ -61,7 +68,6 @@ class BacktestEngine(Engine):
         for metric in metrics:
             self.report_generator.add_metric(metric)
         self.set_logging_level(logging_level)
-        self.last_prices = {}  # Track last known price for each symbol
         self.current_timestamp = None
 
         # Initialize strategy
@@ -71,6 +77,26 @@ class BacktestEngine(Engine):
             execution_client=execution_client,
         )
         self.strategy.initialize(context)
+
+        # Register event subscribers
+        self._register_event_subscribers()
+
+    def _register_event_subscribers(self) -> None:
+        """Register all event subscribers on the event bus."""
+        # Portfolio subscribes to fill events
+        self.event_bus.subscribe(FillEvent, self.portfolio.on_fill)
+
+        # Portfolio subscribes to price update events
+        self.event_bus.subscribe(PriceUpdateEvent, self.portfolio.on_price_update)
+
+        # Strategy subscribes to fill events
+        self.event_bus.subscribe(FillEvent, self.strategy.on_fill_event)
+
+        # Risk manager subscribes to equity update events (if present)
+        if self.risk_manager:
+            self.event_bus.subscribe(
+                EquityUpdateEvent, self.risk_manager.on_equity_update
+            )
 
     def run(self, show_report: bool = True, finalize_trades: bool = False) -> None:
         """Run event-driven backtesting loop.
@@ -82,18 +108,15 @@ class BacktestEngine(Engine):
         # Event-driven backtesting loop
         for event in self.data_client.stream():
             self.current_timestamp = event.timestamp
-            # Publish event to event bus
-            self.event_bus.publish(event)
 
-            # Update unrealized PnL if we have price data
-            price = (
-                event.close_price
-            )  # Works for both bars (close) and ticks (trade_price)
-            if price is not None:
-                current_prices = {event.symbol: price}
-                self.last_prices[event.symbol] = price  # Track last price
-                self.portfolio.update_unrealized_pnl(current_prices)
-                self.portfolio.record_equity(event.timestamp)
+            # Publish price update event (portfolio and risk manager will react)
+            self.event_bus.publish(
+                PriceUpdateEvent(
+                    symbol=event.symbol,
+                    price=event.close_price,
+                    timestamp=event.timestamp,
+                )
+            )
 
             # Handle event in strategy
             self.strategy.on_event(event)
@@ -117,17 +140,16 @@ class BacktestEngine(Engine):
                     order, current_price=current_price
                 )
 
-                # Apply fill to portfolio
-                self.portfolio.apply_fill(fill)
+                # Publish fill event (portfolio and strategy will react)
+                self.event_bus.publish(FillEvent(fill=fill, timestamp=fill.timestamp))
 
-                # Notify strategy of fill
-                self.strategy.on_fill(fill)
-
-                # Update risk manager peak equity
-                if self.risk_manager:
-                    self.risk_manager.update_peak_equity(
-                        self.portfolio.get_total_equity()
+                # Publish equity update event (risk manager will react)
+                self.event_bus.publish(
+                    EquityUpdateEvent(
+                        equity=self.portfolio.get_total_equity(),
+                        timestamp=fill.timestamp,
                     )
+                )
 
         # Finalize trades by closing all open positions
         if finalize_trades:
@@ -152,11 +174,20 @@ class BacktestEngine(Engine):
                     quantity=abs(position.quantity),
                 )
 
-                # Execute closing order with last known price
-                last_price = self.last_prices.get(symbol)
+                # Execute closing order
                 fill = self.execution_client.send_order(
-                    closing_order, current_price=last_price
+                    closing_order, current_price=None
                 )
-                self.portfolio.apply_fill(fill)
+
+                # Publish fill event (portfolio and strategy will react)
+                self.event_bus.publish(FillEvent(fill=fill, timestamp=fill.timestamp))
+
+                # Publish equity update event
+                self.event_bus.publish(
+                    EquityUpdateEvent(
+                        equity=self.portfolio.get_total_equity(),
+                        timestamp=fill.timestamp,
+                    )
+                )
+
                 logger.info(f"Closed position: {symbol} {quantity} @ {fill.price}")
-                self.portfolio.record_equity(self.current_timestamp)

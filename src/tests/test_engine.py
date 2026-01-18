@@ -1,7 +1,7 @@
 """Tests for Engine classes."""
 
 import unittest
-from src.engine import BacktestEngine, LiveEngine
+from src.engine import BacktestEngine
 from src.portfolio import Portfolio
 from src.event_bus import EventBus
 from src.strategy.strategy import Strategy
@@ -104,21 +104,6 @@ class TestEngine(unittest.TestCase):
         self.assertIsNotNone(engine)
         self.assertIsNotNone(self.strategy.context)
         self.assertEqual(self.strategy.context.portfolio, self.portfolio)
-
-    def test_live_engine_initialization(self):
-        """Test LiveEngine initialization."""
-        engine = LiveEngine(
-            data_client=self.data_client,
-            execution_client=self.execution_client,
-            strategy=self.strategy,
-            portfolio=self.portfolio,
-            risk_manager=self.risk_manager,
-            event_bus=self.event_bus,
-            symbols=["AAPL", "MSFT"],
-        )
-
-        self.assertIsNotNone(engine)
-        self.assertIsNotNone(self.strategy.context)
 
 
 if __name__ == "__main__":

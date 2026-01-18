@@ -1,7 +1,7 @@
 """Risk management for position sizing and validation."""
 
 from typing import Optional
-from src.types import Order, OrderSide
+from src.types import Order, OrderSide, EquityUpdateEvent
 from src.portfolio import Portfolio
 
 
@@ -25,6 +25,16 @@ class RiskManager:
         self.max_portfolio_exposure = max_portfolio_exposure
         self.max_drawdown = max_drawdown
         self.peak_equity: Optional[float] = None
+
+    def on_equity_update(self, event: EquityUpdateEvent) -> None:
+        """Handle an EquityUpdateEvent by updating peak equity.
+
+        This method is designed to be subscribed to the event bus.
+
+        Args:
+            event: EquityUpdateEvent containing equity value
+        """
+        self.update_peak_equity(event.equity)
 
     def validate_order(self, order: Order, portfolio: Portfolio) -> bool:
         """Validate an order against risk constraints.
