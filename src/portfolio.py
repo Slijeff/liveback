@@ -134,7 +134,6 @@ class Portfolio:
         Args:
             current_prices: Dictionary mapping symbols to current prices
         """
-        total_unrealized = 0.0
         for symbol, position in self.positions.items():
             if position.quantity != 0 and symbol in current_prices:
                 current_price = current_prices[symbol]
@@ -146,16 +145,18 @@ class Portfolio:
                     position.unrealized_pnl = (
                         position.avg_price - current_price
                     ) * abs(position.quantity)
-                total_unrealized += position.unrealized_pnl
 
     def get_total_equity(self) -> float:
-        """Get total equity (cash + unrealized PnL across all positions).
+        """Get total equity (cash + market value of all positions).
 
         Returns:
             Total equity value
         """
-        total_unrealized = sum(pos.unrealized_pnl for pos in self.positions.values())
-        return self.cash + total_unrealized
+        position_market_value = sum(
+            pos.quantity * pos.avg_price + pos.unrealized_pnl
+            for pos in self.positions.values()
+        )
+        return self.cash + position_market_value
 
     def record_equity(self, timestamp: datetime) -> None:
         """Record current equity to equity curve."""
