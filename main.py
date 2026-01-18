@@ -30,7 +30,7 @@ def main():
         execution_client=execution_client,
         strategy=strategy,
         portfolio=portfolio,
-        logging_level="DEBUG"
+        logging_level="DEBUG",
     )
 
     print("=" * 60)

@@ -12,8 +12,10 @@ from src.event_bus import EventBus
 from src.types import StrategyContext
 from loguru import logger
 
+
 class Engine(ABC):
     """Base engine interface."""
+
     def set_logging_level(self, level: str):
         logger.configure(handlers=[{"sink": sys.stdout, "level": level}])
 
