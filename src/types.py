@@ -125,3 +125,27 @@ class StrategyContext:
     data_client: DataClient
     execution_client: ExecutionClient
     config: dict = None
+
+
+@dataclass
+class Position:
+    """Represents a position in a single symbol."""
+
+    symbol: str
+    quantity: float = 0.0
+    avg_price: float = 0.0
+    unrealized_pnl: float = 0.0
+
+
+@dataclass
+class Trade:
+    """Represents a completed trade."""
+
+    timestamp: datetime
+    symbol: str
+    side: str
+    quantity: float
+    price: float
+    slippage: float
+    commission: float
+    pnl: float

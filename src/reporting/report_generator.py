@@ -1,6 +1,6 @@
 """Report generator for orchestrating metric calculations."""
 
-from typing import Dict, List, Any
+from typing import List
 
 from src.portfolio import Portfolio
 from .metrics import Metric, MetricResult
@@ -20,6 +20,7 @@ class ReportGenerator:
             metrics: List of Metric instances to compute. If None, uses defaults.
         """
         self.metrics = metrics or self._default_metrics()
+        self.metrics.sort(key=lambda m: m.name)
 
     @staticmethod
     def _default_metrics() -> List[Metric]:
@@ -31,6 +32,10 @@ class ReportGenerator:
             MaxDrawdownMetric,
             WinRateMetric,
             NumTradesMetric,
+            TotalEquityMetric,
+            StartingEquityMetric,
+            ProfitFactorMetric,
+            TotalDurationMetric,
         )
 
         return [
@@ -40,6 +45,10 @@ class ReportGenerator:
             MaxDrawdownMetric(),
             WinRateMetric(),
             NumTradesMetric(),
+            TotalEquityMetric(),
+            StartingEquityMetric(),
+            ProfitFactorMetric(),
+            TotalDurationMetric(),
         ]
 
     def add_metric(self, metric: Metric) -> "ReportGenerator":
@@ -52,6 +61,7 @@ class ReportGenerator:
             Self for chaining
         """
         self.metrics.append(metric)
+        self.metrics.sort(key=lambda m: m.name)
         return self
 
     def remove_metric(self, metric_name: str) -> "ReportGenerator":
@@ -64,41 +74,10 @@ class ReportGenerator:
             Self for chaining
         """
         self.metrics = [m for m in self.metrics if m.name != metric_name]
+        self.metrics.sort(key=lambda m: m.name)
         return self
 
-    def generate(self, portfolio: Portfolio) -> Dict[str, Any]:
-        """Generate performance report by computing all metrics.
-
-        Args:
-            trades: List of Trade objects from backtest
-            equity_curve: List of equity values over time
-            initial_capital: Starting capital
-            timestamps: List of timestamps for equity_curve (optional)
-
-        Returns:
-            Dictionary mapping metric names to computed values
-        """
-        report = {}
-
-        for metric in self.metrics:
-            try:
-                timestamp, equity_curve = list(zip(*portfolio.equity_curve))
-                value = metric.calculate(
-                    portfolio.trades, equity_curve, portfolio.initial_cash, timestamp
-                )
-                report[metric.name] = value
-            except Exception as e:
-                report[metric.name] = f"Error: {str(e)}"
-
-        return report
-
-    def generate_with_details(
-        self,
-        trades: List,
-        equity_curve: List[float],
-        initial_capital: float,
-        timestamps: List = None,
-    ) -> List[MetricResult]:
+    def generate(self, portfolio: Portfolio) -> List[MetricResult]:
         """Generate report with detailed MetricResult objects.
 
         Args:
@@ -114,11 +93,13 @@ class ReportGenerator:
 
         for metric in self.metrics:
             try:
+                timestamp, equity_curve = list(zip(*portfolio.equity_curve))
                 value = metric.calculate(
-                    trades, equity_curve, initial_capital, timestamps
+                    portfolio.trades, equity_curve, portfolio.initial_cash, timestamp
                 )
-                unit = self._get_unit_for_metric(metric.name)
-                results.append(MetricResult(name=metric.name, value=value, unit=unit))
+                results.append(
+                    MetricResult(name=metric.name, value=value, unit=metric.unit)
+                )
             except Exception as e:
                 results.append(
                     MetricResult(name=metric.name, value=None, unit=f"Error: {str(e)}")
@@ -126,25 +107,10 @@ class ReportGenerator:
 
         return results
 
-    @staticmethod
-    def _get_unit_for_metric(metric_name: str) -> str:
-        """Return unit for a given metric name."""
-        units = {
-            "Total Return": "%",
-            "Annualized Return": "%",
-            "Sharpe Ratio": "",
-            "Max Drawdown": "%",
-            "Win Rate": "%",
-            "Num Trades": "",
-            "Avg PnL Per Trade": "$",
-            "Profit Factor": "x",
-        }
-        return units.get(metric_name, "")
-
     def format_report(
         self,
-        report: Dict[str, Any],
-        precision: int = 4,
+        reports: List[MetricResult],
+        precision: int = 3,
     ) -> str:
         """Format report as human-readable string.
 
@@ -157,20 +123,19 @@ class ReportGenerator:
         """
         lines = ["=" * 50, "Performance Report", "=" * 50]
 
-        for metric_name, value in report.items():
-            unit = self._get_unit_for_metric(metric_name)
-            if isinstance(value, float):
-                if value == float("inf"):
+        for report in reports:
+            if isinstance(report.value, float):
+                if report.value == float("inf"):
                     formatted_value = "∞"
-                elif value == float("-inf"):
+                elif report.value == float("-inf"):
                     formatted_value = "-∞"
                 else:
-                    formatted_value = f"{value:.{precision}f}"
+                    formatted_value = f"{report.value:.{precision}f}"
             else:
-                formatted_value = str(value)
+                formatted_value = str(report.value)
 
-            unit_str = f" {unit}" if unit else ""
-            lines.append(f"{metric_name:<30} {formatted_value:>12}{unit_str}")
+            unit_str = f" {report.unit}" if report.unit else ""
+            lines.append(f"{report.name:<30} {formatted_value:>12}{unit_str}")
 
         lines.append("=" * 50)
         return "\n".join(lines)

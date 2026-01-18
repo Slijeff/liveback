@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from typing import List
 import numpy as np
 
+from src.types import Trade
+
 
 @dataclass
 class MetricResult:
@@ -28,10 +30,16 @@ class Metric(ABC):
         """Name of the metric."""
         pass
 
+    @property
+    @abstractmethod
+    def unit(self) -> str:
+        """The unit of the metric"""
+        pass
+
     @abstractmethod
     def calculate(
         self,
-        trades: List,
+        trades: List[Trade],
         equity_curve: List[float],
         initial_capital: float,
         timestamps: List = None,
@@ -57,6 +65,10 @@ class TotalReturnMetric(Metric):
     def name(self) -> str:
         return "Total Return"
 
+    @property
+    def unit(self) -> str:
+        return "%"
+
     def calculate(
         self,
         trades: List,
@@ -76,6 +88,10 @@ class AnnualizedReturnMetric(Metric):
     @property
     def name(self) -> str:
         return "Annualized Return"
+
+    @property
+    def unit(self) -> str:
+        return "%"
 
     def calculate(
         self,
@@ -121,6 +137,10 @@ class AnnualizedSharpeRatioMetric(Metric):
     def name(self) -> str:
         return "Annualized Sharpe Ratio"
 
+    @property
+    def unit(self) -> str:
+        return ""
+
     def calculate(
         self,
         trades: List,
@@ -159,6 +179,10 @@ class MaxDrawdownMetric(Metric):
     def name(self) -> str:
         return "Max Drawdown"
 
+    @property
+    def unit(self) -> str:
+        return "%"
+
     def calculate(
         self,
         trades: List,
@@ -184,9 +208,13 @@ class WinRateMetric(Metric):
     def name(self) -> str:
         return "Win Rate"
 
+    @property
+    def unit(self) -> str:
+        return "%"
+
     def calculate(
         self,
-        trades: List,
+        trades: List[Trade],
         equity_curve: List[float],
         initial_capital: float,
         timestamps: List = None,
@@ -194,7 +222,7 @@ class WinRateMetric(Metric):
         if not trades:
             return 0.0
 
-        winners = sum(1 for trade in trades if trade.get("pnl", 0) > 0)
+        winners = sum(1 for trade in trades if trade.pnl > 0)
         return (winners / len(trades)) * 100
 
 
@@ -204,6 +232,10 @@ class AveragePnLPerTradeMetric(Metric):
     @property
     def name(self) -> str:
         return "Avg PnL Per Trade"
+
+    @property
+    def unit(self) -> str:
+        return "$"
 
     def calculate(
         self,
@@ -226,6 +258,10 @@ class NumTradesMetric(Metric):
     def name(self) -> str:
         return "Num Trades"
 
+    @property
+    def unit(self) -> str:
+        return ""
+
     def calculate(
         self,
         trades: List,
@@ -246,9 +282,13 @@ class ProfitFactorMetric(Metric):
     def name(self) -> str:
         return "Profit Factor"
 
+    @property
+    def unit(self) -> str:
+        return ""
+
     def calculate(
         self,
-        trades: List,
+        trades: List[Trade],
         equity_curve: List[float],
         initial_capital: float,
         timestamps: List = None,
@@ -256,14 +296,67 @@ class ProfitFactorMetric(Metric):
         if not trades:
             return 0.0
 
-        gross_profit = sum(
-            trade.get("pnl", 0) for trade in trades if trade.get("pnl", 0) > 0
-        )
-        gross_loss = abs(
-            sum(trade.get("pnl", 0) for trade in trades if trade.get("pnl", 0) < 0)
-        )
+        gross_profit = sum(trade.pnl for trade in trades if trade.pnl > 0)
+        gross_loss = abs(sum(trade.pnl for trade in trades if trade.pnl < 0))
 
         if gross_loss == 0:
             return float("inf") if gross_profit > 0 else 0.0
 
         return gross_profit / gross_loss
+
+
+class TotalEquityMetric(Metric):
+    @property
+    def name(self):
+        return "Total Equity"
+
+    @property
+    def unit(self):
+        return "$"
+
+    def calculate(
+        self,
+        trades: List,
+        equity_curve: List[float],
+        initial_capital: float,
+        timestamps: List = None,
+    ) -> float:
+        return equity_curve[-1]
+
+
+class StartingEquityMetric(Metric):
+    @property
+    def name(self):
+        return "Starting Equity"
+
+    @property
+    def unit(self):
+        return "$"
+
+    def calculate(
+        self,
+        trades: List,
+        equity_curve: List[float],
+        initial_capital: float,
+        timestamps: List = None,
+    ) -> float:
+        return equity_curve[0]
+
+
+class TotalDurationMetric(Metric):
+    @property
+    def name(self):
+        return "Duration"
+
+    @property
+    def unit(self):
+        return "days"
+
+    def calculate(
+        self,
+        trades: List,
+        equity_curve: List[float],
+        initial_capital: float,
+        timestamps: List = None,
+    ) -> float:
+        return (timestamps[-1] - timestamps[0]).days

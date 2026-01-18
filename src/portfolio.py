@@ -1,20 +1,8 @@
 """Portfolio and position management."""
 
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, List, Tuple
-from src.types import Fill, OrderSide
-
-
-@dataclass
-class Position:
-    """Represents a position in a single symbol."""
-
-    symbol: str
-    quantity: float = 0.0
-    avg_price: float = 0.0
-    realized_pnl: float = 0.0
-    unrealized_pnl: float = 0.0
+from src.types import Fill, OrderSide, Trade, Position
 
 
 class Portfolio:
@@ -30,7 +18,7 @@ class Portfolio:
         self.cash = initial_cash
         self.positions: Dict[str, Position] = {}
         self.equity_curve: List[Tuple[datetime, float]] = []
-        self.trades: List[Dict] = []
+        self.trades: List[Trade] = []
 
     def apply_fill(self, fill: Fill) -> None:
         """Apply a fill to update positions and cash.
@@ -44,18 +32,31 @@ class Portfolio:
 
         position = self.positions[symbol]
         cost = fill.quantity * fill.price + fill.commission
+        trade_pnl = 0.0
 
         if fill.side == OrderSide.BUY:
-            # Opening or adding to long position
             if position.quantity < 0:
                 # Closing short position
                 close_quantity = min(abs(position.quantity), fill.quantity)
                 pnl = (
                     position.avg_price - fill.price
                 ) * close_quantity - fill.commission
-                position.realized_pnl += pnl
+                trade_pnl = pnl
                 position.quantity += close_quantity
                 self.cash += fill.quantity * fill.price - cost
+
+                self.trades.append(
+                    Trade(
+                        timestamp=fill.timestamp,
+                        symbol=fill.symbol,
+                        side=fill.side.value,
+                        quantity=close_quantity,
+                        price=fill.price,
+                        slippage=fill.slippage,
+                        commission=fill.commission,
+                        pnl=trade_pnl,
+                    )
+                )
 
                 if fill.quantity > close_quantity:
                     # Opening long position with remainder
@@ -73,16 +74,28 @@ class Portfolio:
                 )
                 self.cash -= cost
         else:  # SELL
-            # Opening or adding to short position
             if position.quantity > 0:
                 # Closing long position
                 close_quantity = min(position.quantity, fill.quantity)
                 pnl = (
                     fill.price - position.avg_price
                 ) * close_quantity - fill.commission
-                position.realized_pnl += pnl
+                trade_pnl = pnl
                 position.quantity -= close_quantity
                 self.cash += close_quantity * fill.price - fill.commission
+
+                self.trades.append(
+                    Trade(
+                        timestamp=fill.timestamp,
+                        symbol=fill.symbol,
+                        side=fill.side.value,
+                        quantity=close_quantity,
+                        price=fill.price,
+                        slippage=fill.slippage,
+                        commission=fill.commission,
+                        pnl=trade_pnl,
+                    )
+                )
 
                 if fill.quantity > close_quantity:
                     # Opening short position with remainder
@@ -103,36 +116,6 @@ class Portfolio:
                     else 0
                 )
                 self.cash += fill.quantity * fill.price - fill.commission
-
-        # Record trade with PnL info
-        trade_pnl = 0.0
-
-        # Calculate PnL for this individual trade (realized PnL from closing)
-        if fill.side == OrderSide.BUY:
-            if position.quantity < 0:  # Was short before this buy
-                close_quantity = min(abs(position.quantity), fill.quantity)
-                trade_pnl = (
-                    position.avg_price - fill.price
-                ) * close_quantity - fill.commission
-        else:  # SELL
-            if position.quantity > 0:  # Was long before this sell
-                close_quantity = min(position.quantity, fill.quantity)
-                trade_pnl = (
-                    fill.price - position.avg_price
-                ) * close_quantity - fill.commission
-
-        self.trades.append(
-            {
-                "timestamp": fill.timestamp,
-                "symbol": fill.symbol,
-                "side": fill.side.value,
-                "quantity": fill.quantity,
-                "price": fill.price,
-                "slippage": fill.slippage,
-                "commission": fill.commission,
-                "pnl": trade_pnl,
-            }
-        )
 
     def get_position(self, symbol: str) -> Position:
         """Get position for a symbol.

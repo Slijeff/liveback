@@ -11,7 +11,7 @@ from src.strategy.strategy import Strategy
 from src.portfolio import Portfolio
 from src.risk_manager import RiskManager
 from src.event_bus import EventBus
-from src.types import StrategyContext
+from src.types import StrategyContext, Order, OrderSide
 from loguru import logger
 
 
@@ -36,7 +36,7 @@ class BacktestEngine(Engine):
         execution_client: ExecutionClient,
         strategy: Strategy,
         portfolio: Portfolio,
-        metrics: List[Metric] = None,
+        metrics: List[Metric] = [],
         logging_level: str = "INFO",
         risk_manager: Optional[RiskManager] = None,
         event_bus: Optional[EventBus] = None,
@@ -57,8 +57,12 @@ class BacktestEngine(Engine):
         self.portfolio = portfolio
         self.risk_manager = risk_manager
         self.event_bus = event_bus if event_bus is not None else EventBus()
-        self.report_generator = ReportGenerator(metrics)
+        self.report_generator = ReportGenerator()
+        for metric in metrics:
+            self.report_generator.add_metric(metric)
         self.set_logging_level(logging_level)
+        self.last_prices = {}  # Track last known price for each symbol
+        self.current_timestamp = None
 
         # Initialize strategy
         context = StrategyContext(
@@ -68,10 +72,16 @@ class BacktestEngine(Engine):
         )
         self.strategy.initialize(context)
 
-    def run(self, show_report: bool = True) -> None:
-        """Run event-driven backtesting loop."""
+    def run(self, show_report: bool = True, finalize_trades: bool = False) -> None:
+        """Run event-driven backtesting loop.
+
+        Args:
+            show_report: Whether to display the backtest report
+            finalize_trades: If True, close all open positions at the end
+        """
         # Event-driven backtesting loop
         for event in self.data_client.stream():
+            self.current_timestamp = event.timestamp
             # Publish event to event bus
             self.event_bus.publish(event)
 
@@ -81,6 +91,7 @@ class BacktestEngine(Engine):
             )  # Works for both bars (close) and ticks (trade_price)
             if price is not None:
                 current_prices = {event.symbol: price}
+                self.last_prices[event.symbol] = price  # Track last price
                 self.portfolio.update_unrealized_pnl(current_prices)
                 self.portfolio.record_equity(event.timestamp)
 
@@ -117,9 +128,38 @@ class BacktestEngine(Engine):
                     self.risk_manager.update_peak_equity(
                         self.portfolio.get_total_equity()
                     )
+
+        # Finalize trades by closing all open positions
+        if finalize_trades:
+            self._close_all_positions()
+
         if show_report:
             report = self.report_generator.generate(self.portfolio)
             print(self.report_generator.format_report(report))
+
+    def _close_all_positions(self) -> None:
+        """Close all open positions by creating and executing closing orders."""
+        for symbol, position in list(self.portfolio.positions.items()):
+            if position.quantity != 0:
+                quantity = position.quantity
+                # Create closing order
+                closing_side = (
+                    OrderSide.SELL if position.quantity > 0 else OrderSide.BUY
+                )
+                closing_order = Order(
+                    symbol=symbol,
+                    side=closing_side,
+                    quantity=abs(position.quantity),
+                )
+
+                # Execute closing order with last known price
+                last_price = self.last_prices.get(symbol)
+                fill = self.execution_client.send_order(
+                    closing_order, current_price=last_price
+                )
+                self.portfolio.apply_fill(fill)
+                logger.info(f"Closed position: {symbol} {quantity} @ {fill.price}")
+                self.portfolio.record_equity(self.current_timestamp)
 
 
 class LiveEngine(Engine):
@@ -153,6 +193,7 @@ class LiveEngine(Engine):
         self.risk_manager = risk_manager
         self.event_bus = event_bus
         self.symbols = symbols
+        self.last_prices = {}  # Track last known price for each symbol
 
         # Initialize strategy
         context = StrategyContext(
@@ -162,8 +203,12 @@ class LiveEngine(Engine):
         )
         self.strategy.initialize(context)
 
-    def run(self) -> None:
-        """Run real-time trading loop."""
+    def run(self, finalize_trades: bool = False) -> None:
+        """Run real-time trading loop.
+
+        Args:
+            finalize_trades: If True, close all open positions (used when stopping the engine)
+        """
         # Subscribe to real-time data feed
         self.data_client.subscribe(self.symbols, self.event_bus.publish)
 
@@ -177,6 +222,7 @@ class LiveEngine(Engine):
             # Update unrealized PnL if we have price data
             if event.trade_price:
                 current_prices = {event.symbol: event.trade_price}
+                self.last_prices[event.symbol] = event.trade_price  # Track last price
                 self.portfolio.update_unrealized_pnl(current_prices)
 
             # Handle event in strategy
@@ -213,3 +259,7 @@ class LiveEngine(Engine):
                     self.risk_manager.update_peak_equity(
                         self.portfolio.get_total_equity()
                     )
+
+        # Finalize trades by closing all open positions
+        if finalize_trades:
+            self._close_all_positions()

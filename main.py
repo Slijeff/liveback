@@ -32,7 +32,7 @@ def main():
         portfolio=portfolio,
         logging_level="DEBUG",
     )
-    engine.run()
+    engine.run(finalize_trades=True)
 
 
 if __name__ == "__main__":
