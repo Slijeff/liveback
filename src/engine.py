@@ -5,6 +5,8 @@ import sys
 from typing import List, Optional
 from src.data.data_client import DataClient
 from src.execution.execution_client import ExecutionClient
+from src.reporting.metrics import Metric
+from src.reporting.report_generator import ReportGenerator
 from src.strategy.strategy import Strategy
 from src.portfolio import Portfolio
 from src.risk_manager import RiskManager
@@ -34,6 +36,7 @@ class BacktestEngine(Engine):
         execution_client: ExecutionClient,
         strategy: Strategy,
         portfolio: Portfolio,
+        metrics: List[Metric] = None,
         logging_level: str = "INFO",
         risk_manager: Optional[RiskManager] = None,
         event_bus: Optional[EventBus] = None,
@@ -54,6 +57,7 @@ class BacktestEngine(Engine):
         self.portfolio = portfolio
         self.risk_manager = risk_manager
         self.event_bus = event_bus if event_bus is not None else EventBus()
+        self.report_generator = ReportGenerator(metrics)
         self.set_logging_level(logging_level)
 
         # Initialize strategy
@@ -64,7 +68,7 @@ class BacktestEngine(Engine):
         )
         self.strategy.initialize(context)
 
-    def run(self) -> None:
+    def run(self, show_report: bool = True) -> None:
         """Run event-driven backtesting loop."""
         # Event-driven backtesting loop
         for event in self.data_client.stream():
@@ -78,7 +82,7 @@ class BacktestEngine(Engine):
             if price is not None:
                 current_prices = {event.symbol: price}
                 self.portfolio.update_unrealized_pnl(current_prices)
-                self.portfolio.record_equity()
+                self.portfolio.record_equity(event.timestamp)
 
             # Handle event in strategy
             self.strategy.on_event(event)
@@ -113,6 +117,9 @@ class BacktestEngine(Engine):
                     self.risk_manager.update_peak_equity(
                         self.portfolio.get_total_equity()
                     )
+        if show_report:
+            report = self.report_generator.generate(self.portfolio)
+            print(self.report_generator.format_report(report))
 
 
 class LiveEngine(Engine):

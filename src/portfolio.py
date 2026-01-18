@@ -1,7 +1,8 @@
 """Portfolio and position management."""
 
 from dataclasses import dataclass
-from typing import Dict, List
+from datetime import datetime
+from typing import Dict, List, Tuple
 from src.types import Fill, OrderSide
 
 
@@ -28,7 +29,7 @@ class Portfolio:
         self.initial_cash = initial_cash
         self.cash = initial_cash
         self.positions: Dict[str, Position] = {}
-        self.equity_curve: List[float] = []
+        self.equity_curve: List[Tuple[datetime, float]] = []
         self.trades: List[Dict] = []
 
     def apply_fill(self, fill: Fill) -> None:
@@ -103,7 +104,23 @@ class Portfolio:
                 )
                 self.cash += fill.quantity * fill.price - fill.commission
 
-        # Record trade
+        # Record trade with PnL info
+        trade_pnl = 0.0
+
+        # Calculate PnL for this individual trade (realized PnL from closing)
+        if fill.side == OrderSide.BUY:
+            if position.quantity < 0:  # Was short before this buy
+                close_quantity = min(abs(position.quantity), fill.quantity)
+                trade_pnl = (
+                    position.avg_price - fill.price
+                ) * close_quantity - fill.commission
+        else:  # SELL
+            if position.quantity > 0:  # Was long before this sell
+                close_quantity = min(position.quantity, fill.quantity)
+                trade_pnl = (
+                    fill.price - position.avg_price
+                ) * close_quantity - fill.commission
+
         self.trades.append(
             {
                 "timestamp": fill.timestamp,
@@ -113,6 +130,7 @@ class Portfolio:
                 "price": fill.price,
                 "slippage": fill.slippage,
                 "commission": fill.commission,
+                "pnl": trade_pnl,
             }
         )
 
@@ -156,6 +174,6 @@ class Portfolio:
         total_unrealized = sum(pos.unrealized_pnl for pos in self.positions.values())
         return self.cash + total_unrealized
 
-    def record_equity(self) -> None:
+    def record_equity(self, timestamp: datetime) -> None:
         """Record current equity to equity curve."""
-        self.equity_curve.append(self.get_total_equity())
+        self.equity_curve.append((timestamp, self.get_total_equity()))

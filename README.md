@@ -15,7 +15,7 @@ LiveBack is a Python-based framework designed for seamless backtesting and live 
 - Python 3.14
 - `uv` package manager
 
-## Installation
+## Development
 1. Clone the repository:
    ```bash
    git clone <repository-url>
@@ -23,15 +23,11 @@ LiveBack is a Python-based framework designed for seamless backtesting and live 
    ```
 2. Install dependencies using `uv`:
    ```bash
-   uv install -r requirements.uv
+   uv sync
    ```
-
-## Usage
-1. Define your strategy by extending the `Strategy` base class.
-2. Configure your data source and execution client in the configuration file.
-3. Run the backtest or live trading engine:
+3. Setup pre-commit:
    ```bash
-   /Users/slijeff/Workspace/quant/liveback/.venv/bin/python main.py --mode backtest
+   pre-commit install
    ```
 
 ## Project Structure
