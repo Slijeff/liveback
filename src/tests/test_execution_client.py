@@ -26,7 +26,7 @@ class TestBrokerSim(unittest.TestCase):
             order_type=OrderType.MARKET,
         )
 
-        fill = self.broker.send_order(order)
+        fill = self.broker.send_order(order, current_price=100.0)
 
         self.assertIsNotNone(fill)
         self.assertEqual(fill.symbol, "AAPL")
@@ -49,7 +49,7 @@ class TestBrokerSim(unittest.TestCase):
 
         order = Order(symbol="AAPL", side=OrderSide.BUY, quantity=10.0)
 
-        fill = broker.send_order(order)
+        fill = broker.send_order(order, current_price=100.0)
 
         self.assertEqual(fill.slippage, 0.5)
         # Price should include slippage (100.0 base + 0.5 slippage)
@@ -59,7 +59,7 @@ class TestBrokerSim(unittest.TestCase):
         """Test sending a sell order."""
         order = Order(symbol="AAPL", side=OrderSide.SELL, quantity=5.0)
 
-        fill = self.broker.send_order(order)
+        fill = self.broker.send_order(order, current_price=100.0)
 
         self.assertEqual(fill.side, OrderSide.SELL)
         self.assertEqual(fill.quantity, 5.0)

@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List
 import numpy as np
+from scipy.stats import gmean
 
 from src.types import Trade
 
@@ -83,7 +84,11 @@ class TotalReturnMetric(Metric):
 
 
 class AnnualizedReturnMetric(Metric):
-    """Calculate annualized return percentage."""
+    """Calculate annualized return percentage using geometric mean of daily returns.
+
+    Implementation based on backtesting.py: assumes returns are compounded.
+    See: https://dx.doi.org/10.2139/ssrn.3054517
+    """
 
     @property
     def name(self) -> str:
@@ -103,35 +108,89 @@ class AnnualizedReturnMetric(Metric):
         if not equity_curve or len(equity_curve) < 2:
             return 0.0
 
-        # Estimate number of years from timestamps or assume daily bars
-        if timestamps and len(timestamps) > 1:
-            days = (timestamps[-1] - timestamps[0]).days
-            years = days / 365.25
-        else:
-            # Assume one reading per trading day (252 trading days/year)
-            years = len(equity_curve) / 252.0
+        # Calculate daily returns
+        equity_array = np.array(equity_curve, dtype=float)
+        daily_returns = np.diff(equity_array) / equity_array[:-1]
 
-        if years <= 0:
+        if len(daily_returns) == 0:
             return 0.0
 
-        annualized = (((equity_curve[-1] / initial_capital) ** (1 / years)) - 1) * 100
-        return annualized
+        # Calculate geometric mean of daily returns
+        gmean_day_return = gmean(1 + daily_returns) - 1
+
+        # Annualize (252 trading days per year)
+        annualized_return = (1 + gmean_day_return) ** 252 - 1
+
+        return float(annualized_return * 100)
+
+
+class AnnualizedVolatilityMetric(Metric):
+    """Calculate annualized volatility using compounded returns formula.
+
+    Implementation based on backtesting.py:
+    volatility = sqrt((var(day_returns) + gmean^2)^252 - gmean^(2*252))
+    See: https://dx.doi.org/10.2139/ssrn.3054517
+    """
+
+    @property
+    def name(self) -> str:
+        return "Annualized Volatility"
+
+    @property
+    def unit(self) -> str:
+        return "%"
+
+    def calculate(
+        self,
+        trades: List,
+        equity_curve: List[float],
+        initial_capital: float,
+        timestamps: List = None,
+    ) -> float:
+        if not equity_curve or len(equity_curve) < 2:
+            return 0.0
+
+        # Calculate daily returns
+        equity_array = np.array(equity_curve, dtype=float)
+        daily_returns = np.diff(equity_array) / equity_array[:-1]
+
+        if len(daily_returns) == 0:
+            return 0.0
+
+        # Calculate geometric mean of daily returns
+        gmean_day_return = gmean(1 + daily_returns) - 1
+
+        # Use sample variance (ddof=1 for sample, ddof=0 for population)
+        # If only one return value, use population variance
+        ddof = int(bool(len(daily_returns)))
+        variance = daily_returns.var(ddof=ddof)
+
+        # Annualized volatility formula from backtesting.py
+        annualized_volatility = np.sqrt(
+            (variance + (1 + gmean_day_return) ** 2) ** 252
+            - (1 + gmean_day_return) ** (2 * 252)
+        )
+
+        return float(annualized_volatility * 100)
 
 
 class AnnualizedSharpeRatioMetric(Metric):
-    """Calculate Sharpe ratio using daily returns from equity curve.
+    """Calculate Sharpe ratio using annualized return and volatility.
 
-    Assumes equity_curve represents daily equity values.
-    Risk-free rate defaults to 0.
+    Implementation based on backtesting.py:
+    Sharpe = (annualized_return - risk_free_rate) / annualized_volatility
+    See: https://dx.doi.org/10.2139/ssrn.3054517
     """
 
     def __init__(self, risk_free_rate: float = 0.0):
         """Initialize Sharpe ratio metric.
 
         Args:
-            risk_free_rate: Annual risk-free rate (default 0.0)
+            risk_free_rate: Annual risk-free rate as decimal (e.g., 0.02 for 2%)
         """
         self.risk_free_rate = risk_free_rate
+        self._annualized_return_metric = AnnualizedReturnMetric()
+        self._volatility_metric = AnnualizedVolatilityMetric()
 
     @property
     def name(self) -> str:
@@ -148,26 +207,28 @@ class AnnualizedSharpeRatioMetric(Metric):
         initial_capital: float,
         timestamps: List = None,
     ) -> float:
-        if len(equity_curve) < 2:
+        if not equity_curve or len(equity_curve) < 2:
             return 0.0
 
-        # Calculate daily returns
-        equity_array = np.array(equity_curve, dtype=float)
-        daily_returns = np.diff(equity_array) / equity_array[:-1]
+        # Get annualized return (in %)
+        annualized_return_pct = self._annualized_return_metric.calculate(
+            trades, equity_curve, initial_capital, timestamps
+        )
 
-        if len(daily_returns) == 0:
+        # Get annualized volatility (in %)
+        volatility_pct = self._volatility_metric.calculate(
+            trades, equity_curve, initial_capital, timestamps
+        )
+
+        if volatility_pct == 0 or np.isnan(volatility_pct):
             return 0.0
 
-        # Calculate Sharpe ratio
-        mean_return = np.mean(daily_returns)
-        std_return = np.std(daily_returns)
+        # Convert return and volatility from % to decimal for calculation
+        annualized_return = annualized_return_pct / 100
+        volatility = volatility_pct / 100
 
-        if std_return == 0:
-            return 0.0
-
-        # Annualize (252 trading days per year)
-        excess_return = mean_return - (self.risk_free_rate / 252)
-        sharpe_ratio = (excess_return / std_return) * np.sqrt(252)
+        # Sharpe ratio = (return - risk_free_rate) / volatility
+        sharpe_ratio = (annualized_return - self.risk_free_rate) / volatility
 
         return float(sharpe_ratio)
 

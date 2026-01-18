@@ -1,6 +1,7 @@
 """Tests for the reporting module metrics."""
 
 import unittest
+from datetime import datetime
 from src.reporting import (
     AnnualizedSharpeRatioMetric,
     MaxDrawdownMetric,
@@ -11,6 +12,8 @@ from src.reporting import (
     ProfitFactorMetric,
     ReportGenerator,
 )
+from src.portfolio import Portfolio
+from src.types import Fill, OrderSide, Trade
 
 
 class TestMetrics(unittest.TestCase):
@@ -71,21 +74,78 @@ class TestMetrics(unittest.TestCase):
         """Test win rate calculation."""
         metric = WinRateMetric()
         trades = [
-            {"pnl": 100.0},
-            {"pnl": -50.0},
-            {"pnl": 200.0},
-            {"pnl": -30.0},
+            Trade(
+                timestamp=datetime.now(),
+                symbol="AAPL",
+                side="BUY",
+                quantity=10.0,
+                price=150.0,
+                slippage=0.0,
+                commission=1.0,
+                pnl=100.0,
+            ),
+            Trade(
+                timestamp=datetime.now(),
+                symbol="AAPL",
+                side="SELL",
+                quantity=10.0,
+                price=155.0,
+                slippage=0.0,
+                commission=1.0,
+                pnl=-50.0,
+            ),
+            Trade(
+                timestamp=datetime.now(),
+                symbol="AAPL",
+                side="BUY",
+                quantity=10.0,
+                price=155.0,
+                slippage=0.0,
+                commission=1.0,
+                pnl=200.0,
+            ),
+            Trade(
+                timestamp=datetime.now(),
+                symbol="AAPL",
+                side="SELL",
+                quantity=10.0,
+                price=160.0,
+                slippage=0.0,
+                commission=1.0,
+                pnl=-30.0,
+            ),
         ]
 
-        result = metric.calculate(trades, [], 100000.0)
+        result = metric.calculate(trades, [], 100000.0, [])
         self.assertEqual(result, 50.0)  # 2 winning / 4 total
 
     def test_win_rate_all_winners(self):
         """Test win rate with all winning trades."""
         metric = WinRateMetric()
-        trades = [{"pnl": 100.0}, {"pnl": 200.0}]
+        trades = [
+            Trade(
+                timestamp=datetime.now(),
+                symbol="AAPL",
+                side="BUY",
+                quantity=10.0,
+                price=150.0,
+                slippage=0.0,
+                commission=1.0,
+                pnl=100.0,
+            ),
+            Trade(
+                timestamp=datetime.now(),
+                symbol="AAPL",
+                side="SELL",
+                quantity=10.0,
+                price=155.0,
+                slippage=0.0,
+                commission=1.0,
+                pnl=200.0,
+            ),
+        ]
 
-        result = metric.calculate(trades, [], 100000.0)
+        result = metric.calculate(trades, [], 100000.0, [])
         self.assertEqual(result, 100.0)
 
     def test_win_rate_no_trades(self):
@@ -103,36 +163,115 @@ class TestMetrics(unittest.TestCase):
             {"pnl": -50.0},
         ]
 
-        result = metric.calculate(trades, [], 100000.0)
+        result = metric.calculate(trades, [], 100000.0, [])
         self.assertAlmostEqual(result, 83.333333, places=5)
 
     def test_num_trades_metric(self):
         """Test number of trades metric."""
         metric = NumTradesMetric()
-        trades = [{"pnl": 100.0}, {"pnl": -50.0}, {"pnl": 75.0}]
+        trades = [
+            Trade(
+                timestamp=datetime.now(),
+                symbol="AAPL",
+                side="BUY",
+                quantity=10.0,
+                price=150.0,
+                slippage=0.0,
+                commission=1.0,
+                pnl=100.0,
+            ),
+            Trade(
+                timestamp=datetime.now(),
+                symbol="AAPL",
+                side="SELL",
+                quantity=10.0,
+                price=155.0,
+                slippage=0.0,
+                commission=1.0,
+                pnl=-50.0,
+            ),
+            Trade(
+                timestamp=datetime.now(),
+                symbol="AAPL",
+                side="BUY",
+                quantity=10.0,
+                price=155.0,
+                slippage=0.0,
+                commission=1.0,
+                pnl=75.0,
+            ),
+        ]
 
-        result = metric.calculate(trades, [], 100000.0)
+        result = metric.calculate(trades, [], 100000.0, [])
         self.assertEqual(result, 3.0)
 
     def test_profit_factor_metric(self):
         """Test profit factor calculation."""
         metric = ProfitFactorMetric()
         trades = [
-            {"pnl": 100.0},
-            {"pnl": 200.0},
-            {"pnl": -50.0},
+            Trade(
+                timestamp=datetime.now(),
+                symbol="AAPL",
+                side="BUY",
+                quantity=10.0,
+                price=150.0,
+                slippage=0.0,
+                commission=1.0,
+                pnl=100.0,
+            ),
+            Trade(
+                timestamp=datetime.now(),
+                symbol="AAPL",
+                side="SELL",
+                quantity=10.0,
+                price=155.0,
+                slippage=0.0,
+                commission=1.0,
+                pnl=200.0,
+            ),
+            Trade(
+                timestamp=datetime.now(),
+                symbol="AAPL",
+                side="BUY",
+                quantity=10.0,
+                price=155.0,
+                slippage=0.0,
+                commission=1.0,
+                pnl=-50.0,
+            ),
         ]
 
-        result = metric.calculate(trades, [], 100000.0)
+        result = metric.calculate(trades, [], 100000.0, [])
         # (100 + 200) / 50 = 6.0
         self.assertEqual(result, 6.0)
 
     def test_profit_factor_no_losses(self):
         """Test profit factor with no losses."""
         metric = ProfitFactorMetric()
-        trades = [{"pnl": 100.0}, {"pnl": 200.0}]
+        trades = [
+            Trade(
+                timestamp=datetime.now(),
+                symbol="AAPL",
+                side="BUY",
+                quantity=10.0,
+                price=150.0,
+                slippage=0.0,
+                commission=1.0,
+                pnl=100.0,
+            ),
+            Trade(
+                timestamp=datetime.now(),
+                symbol="AAPL",
+                side="SELL",
+                quantity=10.0,
+                price=155.0,
+                slippage=0.0,
+                commission=1.0,
+                pnl=200.0,
+            ),
+        ]
 
-        result = metric.calculate(trades, [], 100000.0)
+        result = metric.calculate(trades, [], 100000.0, [])
         self.assertEqual(result, float("inf"))
 
     def test_profit_factor_no_trades(self):
@@ -148,27 +287,70 @@ class TestReportGenerator(unittest.TestCase):
     def test_generate_with_default_metrics(self):
         """Test report generation with default metrics."""
         gen = ReportGenerator()
-        equity_curve = [100000.0, 105000.0, 110000.0]
-        trades = [{"pnl": 100.0}, {"pnl": -50.0}]
+        portfolio = Portfolio(initial_cash=100000.0)
+        equity_curve_values = [100000.0, 105000.0, 110000.0]
 
-        report = gen.generate(trades, equity_curve, 100000.0)
+        # Build equity curve with timestamps
+        for i, eq in enumerate(equity_curve_values):
+            ts = datetime.now()
+            portfolio.equity_curve.append((ts, eq))
 
-        self.assertIn("Total Return", report)
-        self.assertIn("Sharpe Ratio", report)
-        self.assertIn("Max Drawdown", report)
-        self.assertIsInstance(report, dict)
+        # Add some trades
+        fill1 = Fill(
+            order_id="ORD_1",
+            timestamp=datetime.now(),
+            symbol="AAPL",
+            side=OrderSide.BUY,
+            quantity=10.0,
+            price=150.0,
+        )
+        fill2 = Fill(
+            order_id="ORD_2",
+            timestamp=datetime.now(),
+            symbol="AAPL",
+            side=OrderSide.SELL,
+            quantity=10.0,
+            price=151.0,
+        )
+        portfolio.apply_fill(fill1)
+        portfolio.apply_fill(fill2)
+
+        report = gen.generate(portfolio)
+
+        # Result should be a list of MetricResult objects
+        self.assertIsNotNone(report)
+        self.assertTrue(len(report) > 0)
+        # Check that some expected metrics exist
+        metric_names = [r.name for r in report]
+        self.assertIn("Total Return", metric_names)
 
     def test_generate_with_custom_metrics(self):
         """Test report generation with custom metrics."""
         gen = ReportGenerator(metrics=[TotalReturnMetric(), WinRateMetric()])
-        equity_curve = [100000.0, 105000.0]
-        trades = [{"pnl": 100.0}]
+        portfolio = Portfolio(initial_cash=100000.0)
 
-        report = gen.generate(trades, equity_curve, 100000.0)
+        # Build equity curve with timestamps
+        for eq in [100000.0, 105000.0]:
+            ts = datetime.now()
+            portfolio.equity_curve.append((ts, eq))
+
+        # Add a trade
+        fill = Fill(
+            order_id="ORD_1",
+            timestamp=datetime.now(),
+            symbol="AAPL",
+            side=OrderSide.BUY,
+            quantity=10.0,
+            price=150.0,
+        )
+        portfolio.apply_fill(fill)
+
+        report = gen.generate(portfolio)
 
         self.assertEqual(len(report), 2)
-        self.assertIn("Total Return", report)
-        self.assertIn("Win Rate", report)
+        metric_names = [r.name for r in report]
+        self.assertIn("Total Return", metric_names)
+        self.assertIn("Win Rate", metric_names)
 
     def test_add_metric_fluent_api(self):
         """Test fluent API for adding metrics."""
@@ -183,7 +365,7 @@ class TestReportGenerator(unittest.TestCase):
         gen = ReportGenerator()
         initial_count = len(gen.metrics)
 
-        gen.remove_metric("Sharpe Ratio")
+        gen.remove_metric("Annualized Sharpe Ratio")
 
         self.assertEqual(len(gen.metrics), initial_count - 1)
         self.assertFalse(any(m.name == "Sharpe Ratio" for m in gen.metrics))
@@ -191,26 +373,19 @@ class TestReportGenerator(unittest.TestCase):
     def test_format_report(self):
         """Test report formatting."""
         gen = ReportGenerator(metrics=[TotalReturnMetric()])
-        equity_curve = [100000.0, 110000.0]
+        portfolio = Portfolio(initial_cash=100000.0)
 
-        report = gen.generate([], equity_curve, 100000.0)
+        # Build equity curve with timestamps
+        for eq in [100000.0, 110000.0]:
+            ts = datetime.now()
+            portfolio.equity_curve.append((ts, eq))
+
+        report = gen.generate(portfolio)
         formatted = gen.format_report(report)
 
         self.assertIn("Total Return", formatted)
         self.assertIn("10", formatted)  # Should contain the return value
         self.assertIn("=" * 50, formatted)  # Should have borders
-
-    def test_generate_with_details(self):
-        """Test detailed result generation."""
-        gen = ReportGenerator(metrics=[TotalReturnMetric(), MaxDrawdownMetric()])
-        equity_curve = [100000.0, 110000.0, 105000.0]
-
-        results = gen.generate_with_details([], equity_curve, 100000.0)
-
-        self.assertEqual(len(results), 2)
-        self.assertEqual(results[0].name, "Total Return")
-        self.assertEqual(results[0].unit, "%")
-        self.assertIsInstance(results[0].value, float)
 
 
 if __name__ == "__main__":

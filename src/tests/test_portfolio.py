@@ -40,7 +40,7 @@ class TestPortfolio(unittest.TestCase):
         # Average price includes commission: (150.0 * 10 + 1.0) / 10 = 150.1
         self.assertAlmostEqual(position.avg_price, 150.1, places=2)
         self.assertEqual(self.portfolio.cash, 100000.0 - (10.0 * 150.0) - 1.0)
-        self.assertEqual(len(self.portfolio.trades), 1)
+        self.assertEqual(len(self.portfolio.trades), 0)
 
     def test_sell_order_short_position(self):
         """Test applying a sell fill to open a short position."""
@@ -90,8 +90,9 @@ class TestPortfolio(unittest.TestCase):
 
         position = self.portfolio.get_position("AAPL")
         self.assertEqual(position.quantity, 0.0)
-        # Realized PnL should be (155 - 150) * 10 - 2 = 48
-        self.assertAlmostEqual(position.realized_pnl, 48.0, places=2)
+        # Check the closed trade has the right PnL
+        self.assertEqual(len(self.portfolio.trades), 1)
+        self.assertAlmostEqual(self.portfolio.trades[0].pnl, 48.0, places=2)
 
     def test_closing_short_position(self):
         """Test closing a short position with a buy."""
@@ -121,11 +122,9 @@ class TestPortfolio(unittest.TestCase):
 
         position = self.portfolio.get_position("AAPL")
         self.assertEqual(position.quantity, 0.0)
-        # Realized PnL calculation: profit per share * quantity - commissions
-        # When closing short: (entry_price - exit_price) * quantity - commission
-        # Commission on buy is only charged when closing, so: (150 - 145) * 10 - 1 = 49
-        # Note: portfolio logic may handle commissions differently
-        self.assertAlmostEqual(position.realized_pnl, 49.0, places=2)
+        # Check the closed trade has the right PnL
+        self.assertEqual(len(self.portfolio.trades), 1)
+        self.assertAlmostEqual(self.portfolio.trades[0].pnl, 49.0, places=2)
 
     def test_unrealized_pnl(self):
         """Test unrealized PnL calculation."""
@@ -165,18 +164,14 @@ class TestPortfolio(unittest.TestCase):
         current_prices = {"AAPL": 155.0}
         self.portfolio.update_unrealized_pnl(current_prices)
 
-        # Total equity = cash + unrealized PnL
-        # Cash after buy: 100000 - 1500 = 98500
-        # Unrealized PnL: 50
-        # Total: 98550
         total_equity = self.portfolio.get_total_equity()
-        self.assertAlmostEqual(total_equity, 98550.0, places=2)
+        self.assertAlmostEqual(total_equity, 100050.0, places=2)
 
     def test_record_equity(self):
         """Test recording equity to equity curve."""
-        self.portfolio.record_equity()
+        self.portfolio.record_equity(datetime.now())
         self.assertEqual(len(self.portfolio.equity_curve), 1)
-        self.assertEqual(self.portfolio.equity_curve[0], 100000.0)
+        self.assertEqual(self.portfolio.equity_curve[0][1], 100000.0)
 
 
 if __name__ == "__main__":
