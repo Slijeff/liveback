@@ -2,7 +2,18 @@
 
 from datetime import datetime
 from typing import Dict, List, Tuple
-from src.types import Fill, OrderSide, Trade, Position, FillEvent, PriceUpdateEvent
+
+from src.types import (
+    Fill,
+    OrderSide,
+    Trade,
+    Position,
+    FillEvent,
+    PriceUpdateEvent,
+    EquityUpdateEvent,
+)
+
+from src.event_bus import EventBus
 
 
 class Portfolio:
@@ -12,6 +23,7 @@ class Portfolio:
         """Initialize portfolio.
 
         Args:
+            event_bus: Event bus for publishing equity update events
             initial_cash: Starting cash balance
         """
         self.initial_cash = initial_cash
@@ -19,6 +31,7 @@ class Portfolio:
         self.positions: Dict[str, Position] = {}
         self.equity_curve: List[Tuple[datetime, float]] = []
         self.trades: List[Trade] = []
+        self.event_bus = EventBus()
 
     def on_fill(self, event: FillEvent) -> None:
         """Handle a FillEvent by applying the fill to the portfolio.
@@ -41,6 +54,13 @@ class Portfolio:
         current_prices = {event.symbol: event.price}
         self.update_unrealized_pnl(current_prices)
         self.record_equity(event.timestamp)
+        # Publish equity update event
+        self.event_bus.publish(
+            EquityUpdateEvent(
+                equity=self.get_total_equity(),
+                timestamp=event.timestamp,
+            )
+        )
 
     def apply_fill(self, fill: Fill) -> None:
         """Apply a fill to update positions and cash.
@@ -138,17 +158,13 @@ class Portfolio:
                     else 0
                 )
                 self.cash += fill.quantity * fill.price - fill.commission
-
-    def get_position(self, symbol: str) -> Position:
-        """Get position for a symbol.
-
-        Args:
-            symbol: Symbol to get position for
-
-        Returns:
-            Position object for the symbol
-        """
-        return self.positions.get(symbol, Position(symbol=symbol))
+        # Publish equity update event
+        self.event_bus.publish(
+            EquityUpdateEvent(
+                equity=self.get_total_equity(),
+                timestamp=fill.timestamp,
+            )
+        )
 
     def update_unrealized_pnl(self, current_prices: Dict[str, float]) -> None:
         """Update unrealized PnL based on current market prices.
@@ -183,3 +199,14 @@ class Portfolio:
     def record_equity(self, timestamp: datetime) -> None:
         """Record current equity to equity curve."""
         self.equity_curve.append((timestamp, self.get_total_equity()))
+
+    def get_position(self, symbol: str) -> Position:
+        """Return existing position or create a new zero position for the symbol.
+
+        This prevents callers from needing to check for existence and aligns with
+        risk manager logic which expects a Position object even when none exists
+        yet for a given symbol.
+        """
+        if symbol not in self.positions:
+            self.positions[symbol] = Position(symbol=symbol)
+        return self.positions[symbol]

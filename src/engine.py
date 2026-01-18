@@ -61,9 +61,13 @@ class BacktestEngine(Engine):
         self.data_client = data_client
         self.execution_client = execution_client
         self.strategy = strategy
-        self.portfolio = portfolio
         self.risk_manager = risk_manager
         self.event_bus = event_bus if event_bus is not None else EventBus()
+
+        # Ensure portfolio has event bus set
+        self.portfolio = portfolio
+        self.portfolio.event_bus = self.event_bus
+
         self.report_generator = ReportGenerator()
         for metric in metrics:
             self.report_generator.add_metric(metric)
@@ -143,15 +147,7 @@ class BacktestEngine(Engine):
                 # Publish fill event (portfolio and strategy will react)
                 self.event_bus.publish(FillEvent(fill=fill, timestamp=fill.timestamp))
 
-                # Publish equity update event (risk manager will react)
-                self.event_bus.publish(
-                    EquityUpdateEvent(
-                        equity=self.portfolio.get_total_equity(),
-                        timestamp=fill.timestamp,
-                    )
-                )
-
-        # Finalize trades by closing all open positions
+            # Finalize trades by closing all open positions
         if finalize_trades:
             self._close_all_positions()
 
@@ -181,13 +177,5 @@ class BacktestEngine(Engine):
 
                 # Publish fill event (portfolio and strategy will react)
                 self.event_bus.publish(FillEvent(fill=fill, timestamp=fill.timestamp))
-
-                # Publish equity update event
-                self.event_bus.publish(
-                    EquityUpdateEvent(
-                        equity=self.portfolio.get_total_equity(),
-                        timestamp=fill.timestamp,
-                    )
-                )
 
                 logger.info(f"Closed position: {symbol} {quantity} @ {fill.price}")
