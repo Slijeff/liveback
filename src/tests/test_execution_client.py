@@ -1,7 +1,7 @@
 """Tests for ExecutionClient and BrokerSim."""
 
 import unittest
-from src.execution.execution_client import BrokerSim
+from src.execution_client import BrokerSim
 from src.types import Order, OrderSide, OrderType
 
 

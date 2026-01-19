@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from typing import List
-from src.types import StrategyContext, Event, Fill, Order, OrderId, FillEvent
+from src.types import StrategyContext, Bar, Fill, Order, OrderId, FillEvent
 from loguru import logger
 
 
@@ -24,7 +24,7 @@ class Strategy(ABC):
         self.context = context
 
     @abstractmethod
-    def on_event(self, event: Event) -> None:
+    def on_event(self, event: Bar) -> None:
         """Handle a market data event.
 
         Args:

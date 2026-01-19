@@ -4,8 +4,8 @@ import unittest
 from src.engine import BacktestEngine
 from src.portfolio import Portfolio
 from src.event_bus import EventBus
-from src.strategy.strategy import Strategy
-from src.types import StrategyContext, Event, Order, Fill
+from src.strategy import Strategy
+from src.types import StrategyContext, Bar, Order, Fill
 
 
 class MockDataClient:
@@ -16,7 +16,7 @@ class MockDataClient:
         from datetime import datetime
         from src.types import EventType
 
-        yield Event(
+        yield Bar(
             timestamp=datetime.now(),
             symbol="AAPL",
             event_type=EventType.TICK,
@@ -62,7 +62,7 @@ class MockStrategy(Strategy):
     def initialize(self, context: StrategyContext):
         self.context = context
 
-    def on_event(self, event: Event):
+    def on_event(self, event: Bar):
         self.events_received.append(event)
 
     def on_fill(self, fill: Fill):

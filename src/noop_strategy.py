@@ -1,8 +1,8 @@
 """A buy-and-hold strategy that buys once at the start."""
 
 from loguru import logger
-from src.strategy.strategy import Strategy
-from src.types import Event, Fill, Order, OrderSide, OrderType
+from src.strategy import Strategy
+from src.types import Bar, Fill, Order, OrderSide, OrderType
 
 
 class NoOpStrategy(Strategy):
@@ -18,7 +18,7 @@ class NoOpStrategy(Strategy):
         self.has_placed_initial_order = False
         self.cash_percentage = cash_percentage
 
-    def on_event(self, event: Event) -> None:
+    def on_event(self, event: Bar) -> None:
         """Handle a market data event - places buy order on first event.
 
         Args:

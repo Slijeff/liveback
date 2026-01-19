@@ -2,7 +2,7 @@
 
 import unittest
 from datetime import datetime
-from src.types import Event, EventType, Order, OrderSide, OrderType, Fill
+from src.types import Bar, EventType, Order, OrderSide, OrderType, Fill
 
 
 class TestEvent(unittest.TestCase):
@@ -11,7 +11,7 @@ class TestEvent(unittest.TestCase):
     def test_tick_event_creation(self):
         """Test creating a tick event."""
         timestamp = datetime(2024, 1, 1, 12, 0, 0)
-        tick = Event(
+        tick = Bar(
             timestamp=timestamp,
             symbol="AAPL",
             event_type=EventType.TICK,
@@ -30,7 +30,7 @@ class TestEvent(unittest.TestCase):
     def test_bar_event_creation(self):
         """Test creating a bar event."""
         timestamp = datetime(2024, 1, 1, 12, 0, 0)
-        bar = Event(
+        bar = Bar(
             timestamp=timestamp,
             symbol="AAPL",
             event_type=EventType.BAR,
@@ -54,7 +54,7 @@ class TestEvent(unittest.TestCase):
     def test_bar_event_close_price_fallback(self):
         """Test bar event using trade_price as close fallback."""
         timestamp = datetime(2024, 1, 1, 12, 0, 0)
-        bar = Event(
+        bar = Bar(
             timestamp=timestamp,
             symbol="AAPL",
             event_type=EventType.BAR,

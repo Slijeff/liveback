@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import Mock, patch
 from datetime import datetime
 import pandas as pd
-from src.data.data_client import YFinanceDataClient, CSVDataClient
+from src.data_client import YFinanceDataClient, CSVDataClient
 from src.types import EventType
 
 

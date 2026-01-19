@@ -3,13 +3,12 @@
 from abc import ABC, abstractmethod
 import sys
 from typing import List, Optional
-from src.data.data_client import DataClient
-from src.execution.execution_client import ExecutionClient
-from src.reporting.metrics import Metric
-from src.reporting.report_generator import ReportGenerator
-from src.strategy.strategy import Strategy
+from src.data_client import DataClient
+from src.execution_client import ExecutionClient
+from src.metrics import Metric
+from src.report_generator import ReportGenerator
+from src.strategy import Strategy
 from src.portfolio import Portfolio
-from src.risk_manager import RiskManager
 from src.event_bus import EventBus
 from src.types import (
     StrategyContext,
@@ -17,7 +16,6 @@ from src.types import (
     OrderSide,
     FillEvent,
     PriceUpdateEvent,
-    EquityUpdateEvent,
 )
 from loguru import logger
 
@@ -45,7 +43,6 @@ class BacktestEngine(Engine):
         portfolio: Portfolio,
         metrics: List[Metric] = [],
         logging_level: str = "INFO",
-        risk_manager: Optional[RiskManager] = None,
         event_bus: Optional[EventBus] = None,
     ):
         """Initialize backtest engine.
@@ -61,7 +58,6 @@ class BacktestEngine(Engine):
         self.data_client = data_client
         self.execution_client = execution_client
         self.strategy = strategy
-        self.risk_manager = risk_manager
         self.event_bus = event_bus if event_bus is not None else EventBus()
 
         # Ensure portfolio has event bus set
@@ -96,12 +92,6 @@ class BacktestEngine(Engine):
         # Strategy subscribes to fill events
         self.event_bus.subscribe(FillEvent, self.strategy.on_fill_event)
 
-        # Risk manager subscribes to equity update events (if present)
-        if self.risk_manager:
-            self.event_bus.subscribe(
-                EquityUpdateEvent, self.risk_manager.on_equity_update
-            )
-
     def run(self, show_report: bool = True, finalize_trades: bool = False) -> None:
         """Run event-driven backtesting loop.
 
@@ -130,12 +120,6 @@ class BacktestEngine(Engine):
 
             # Process each order
             for order in orders:
-                # Validate with risk manager if present
-                if self.risk_manager and not self.risk_manager.validate_order(
-                    order, self.portfolio
-                ):
-                    continue  # Skip invalid orders
-
                 # Send order to execution client (use current event price)
                 current_price = (
                     event.close_price if order.symbol == event.symbol else None

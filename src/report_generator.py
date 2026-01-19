@@ -3,7 +3,7 @@
 from typing import List
 
 from src.portfolio import Portfolio
-from .metrics import Metric, MetricResult
+from src.metrics import Metric, MetricResult
 
 
 class ReportGenerator:
@@ -25,7 +25,7 @@ class ReportGenerator:
     @staticmethod
     def _default_metrics() -> List[Metric]:
         """Return default set of metrics."""
-        from .metrics import (
+        from src.metrics import (
             TotalReturnMetric,
             AnnualizedReturnMetric,
             AnnualizedSharpeRatioMetric,
