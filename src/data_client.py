@@ -5,7 +5,7 @@ from typing import List, Iterator, Optional, Dict
 from datetime import datetime
 import yfinance as yf
 import pandas as pd
-from src.types import Bar
+from src.types import Bar, MultiBar
 from loguru import logger
 
 
@@ -56,7 +56,8 @@ class YFinanceDataClient(DataClient):
         self.period = period
         self.interval = interval
 
-        self.n_bars = None
+        self.n_bars: int = None
+        self.current_bar: int = None
 
         # Validate that either period or start_date is provided
         if not period and not start_date:
@@ -125,9 +126,10 @@ class YFinanceDataClient(DataClient):
         self._data = all_data
         return self._data
 
-    def stream(self) -> Iterator[Dict[str, Bar]]:
+    def stream(self) -> Iterator[MultiBar]:
         data = self._fetch_data()
         for i in range(self.n_bars):
+            self.current_bar = i
             bars = {}
             for symbol, df in data.items():
                 row = df.iloc[i]

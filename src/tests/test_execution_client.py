@@ -1,7 +1,7 @@
 """Tests for ExecutionClient and BrokerSim."""
 
 import unittest
-from src.execution_client import BrokerSim
+from src.broker import BrokerSim
 from src.types import Order, OrderSide, OrderType
 
 
@@ -26,7 +26,7 @@ class TestBrokerSim(unittest.TestCase):
             order_type=OrderType.MARKET,
         )
 
-        fill = self.broker.send_order(order, current_price=100.0)
+        fill = self.broker.process_orders(order, current_bar=100.0)
 
         self.assertIsNotNone(fill)
         self.assertEqual(fill.symbol, "AAPL")
@@ -36,7 +36,7 @@ class TestBrokerSim(unittest.TestCase):
         self.assertEqual(fill.order_id, "SIM_1")
 
         # Counter should increment
-        fill2 = self.broker.send_order(order)
+        fill2 = self.broker.process_orders(order)
         self.assertEqual(fill2.order_id, "SIM_2")
 
     def test_send_order_with_slippage_model(self):
@@ -49,7 +49,7 @@ class TestBrokerSim(unittest.TestCase):
 
         order = Order(symbol="AAPL", side=OrderSide.BUY, quantity=10.0)
 
-        fill = broker.send_order(order, current_price=100.0)
+        fill = broker.process_orders(order, current_bar=100.0)
 
         self.assertEqual(fill.slippage, 0.5)
         # Price should include slippage (100.0 base + 0.5 slippage)
@@ -59,7 +59,7 @@ class TestBrokerSim(unittest.TestCase):
         """Test sending a sell order."""
         order = Order(symbol="AAPL", side=OrderSide.SELL, quantity=5.0)
 
-        fill = self.broker.send_order(order, current_price=100.0)
+        fill = self.broker.process_orders(order, current_bar=100.0)
 
         self.assertEqual(fill.side, OrderSide.SELL)
         self.assertEqual(fill.quantity, 5.0)

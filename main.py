@@ -14,7 +14,7 @@ def main():
     print(data_client)
 
     # Set up execution client (simulated broker for backtesting)
-    # execution_client = BrokerSim()
+    # broker = BrokerSim()
 
     # Set up portfolio with initial capital
     # portfolio = Portfolio(initial_cash=100000.0)

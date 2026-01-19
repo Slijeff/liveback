@@ -94,7 +94,7 @@ class TestEngine(unittest.TestCase):
         """Test BacktestEngine initialization."""
         engine = BacktestEngine(
             data_client=self.data_client,
-            execution_client=self.execution_client,
+            broker=self.execution_client,
             strategy=self.strategy,
             portfolio=self.portfolio,
             risk_manager=self.risk_manager,

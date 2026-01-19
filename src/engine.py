@@ -2,16 +2,14 @@
 
 from abc import ABC, abstractmethod
 import sys
-from typing import List, Optional
+from typing import List
 from src.data_client import DataClient
-from src.execution_client import ExecutionClient
+from src.broker import Broker
 from src.metrics import Metric
 from src.report_generator import ReportGenerator
 from src.strategy import Strategy
 from src.portfolio import Portfolio
-from src.event_bus import EventBus
 from src.types import (
-    StrategyContext,
     Order,
     OrderSide,
     FillEvent,
@@ -26,6 +24,25 @@ class Engine(ABC):
     def set_logging_level(self, level: str):
         logger.configure(handlers=[{"sink": sys.stdout, "level": level}])
 
+    def __init__(
+        self,
+        data_client: DataClient,
+        broker: Broker,
+        strategy: Strategy,
+        portfolio: Portfolio,
+        metrics: List[Metric] = [],
+        logging_level: str = "INFO",
+    ):
+        self.data_client = data_client
+        self.execution_client = broker
+        self.strategy = strategy
+        self.portfolio = portfolio
+
+        self.report_generator = ReportGenerator()
+        for metric in metrics:
+            self.report_generator.add_metric(metric)
+        self.set_logging_level(logging_level)
+
     @abstractmethod
     def run(self) -> None:
         """Run the engine (blocking)."""
@@ -38,59 +55,15 @@ class BacktestEngine(Engine):
     def __init__(
         self,
         data_client: DataClient,
-        execution_client: ExecutionClient,
+        broker: Broker,
         strategy: Strategy,
         portfolio: Portfolio,
         metrics: List[Metric] = [],
         logging_level: str = "INFO",
-        event_bus: Optional[EventBus] = None,
     ):
-        """Initialize backtest engine.
-
-        Args:
-            data_client: Data client providing historical data stream
-            execution_client: Execution client (simulated broker)
-            strategy: Trading strategy instance
-            portfolio: Portfolio manager
-            risk_manager: Optional risk manager for order validation
-            event_bus: Event bus for event routing
-        """
-        self.data_client = data_client
-        self.execution_client = execution_client
-        self.strategy = strategy
-        self.event_bus = event_bus if event_bus is not None else EventBus()
-
-        # Ensure portfolio has event bus set
-        self.portfolio = portfolio
-        self.portfolio.event_bus = self.event_bus
-
-        self.report_generator = ReportGenerator()
-        for metric in metrics:
-            self.report_generator.add_metric(metric)
-        self.set_logging_level(logging_level)
-        self.current_timestamp = None
-
-        # Initialize strategy
-        context = StrategyContext(
-            portfolio=portfolio,
-            data_client=data_client,
-            execution_client=execution_client,
+        super().__init__(
+            data_client, broker, strategy, portfolio, metrics, logging_level
         )
-        self.strategy.initialize(context)
-
-        # Register event subscribers
-        self._register_event_subscribers()
-
-    def _register_event_subscribers(self) -> None:
-        """Register all event subscribers on the event bus."""
-        # Portfolio subscribes to fill events
-        self.event_bus.subscribe(FillEvent, self.portfolio.on_fill)
-
-        # Portfolio subscribes to price update events
-        self.event_bus.subscribe(PriceUpdateEvent, self.portfolio.on_price_update)
-
-        # Strategy subscribes to fill events
-        self.event_bus.subscribe(FillEvent, self.strategy.on_fill_event)
 
     def run(self, show_report: bool = True, finalize_trades: bool = False) -> None:
         """Run event-driven backtesting loop.
@@ -101,8 +74,6 @@ class BacktestEngine(Engine):
         """
         # Event-driven backtesting loop
         for event in self.data_client.stream():
-            self.current_timestamp = event.timestamp
-
             # Publish price update event (portfolio and risk manager will react)
             self.event_bus.publish(
                 PriceUpdateEvent(
@@ -124,8 +95,8 @@ class BacktestEngine(Engine):
                 current_price = (
                     event.close_price if order.symbol == event.symbol else None
                 )
-                fill = self.execution_client.send_order(
-                    order, current_price=current_price
+                fill = self.execution_client.process_orders(
+                    order, current_bar=current_price
                 )
 
                 # Publish fill event (portfolio and strategy will react)
@@ -155,8 +126,8 @@ class BacktestEngine(Engine):
                 )
 
                 # Execute closing order
-                fill = self.execution_client.send_order(
-                    closing_order, current_price=None
+                fill = self.execution_client.process_orders(
+                    closing_order, current_bar=None
                 )
 
                 # Publish fill event (portfolio and strategy will react)

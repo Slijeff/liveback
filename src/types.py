@@ -10,7 +10,7 @@ from enum import Enum
 if TYPE_CHECKING:
     from src.portfolio import Portfolio
     from src.data_client import DataClient
-    from src.execution_client import ExecutionClient
+    from src.broker import Broker
 
 
 class OrderSide(Enum):
@@ -53,6 +53,9 @@ class Bar:
         )
 
 
+MultiBar = dict[str, Bar]
+
+
 @dataclass
 class Order:
     """Order representation."""
@@ -89,7 +92,7 @@ class StrategyContext:
 
     portfolio: Portfolio
     data_client: DataClient
-    execution_client: ExecutionClient
+    execution_client: Broker
     config: dict = None
 
 
