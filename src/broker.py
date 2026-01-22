@@ -1,14 +1,16 @@
 """Execution client interfaces for order routing and execution."""
 
 from abc import ABC, abstractmethod
-from typing import List, Dict
-from src.types import Order, MultiBar, Trade, Position
+from typing import List, Dict, Optional
+from src.types import Order, MultiBar, Trade, Position, OrderSide, OrderType
 
 
 class Broker(ABC):
     """Abstract interface for execution clients (backtest simulation and live brokers)."""
 
-    def __init__(self):
+    def __init__(self, cash: float = 0.0):
+        self.cash: float = 0.0
+
         self.orders: List[Order] = []
         self.trades: List[Trade] = []
         self.closed_trades: List[Trade] = []
@@ -18,5 +20,52 @@ class Broker(ABC):
         self.process_orders(current_bar)
 
     @abstractmethod
+    def new_order(
+        self,
+        symbol: str,
+        quantity: float,
+        limit: Optional[float],
+        stop: Optional[float],
+    ) -> Order:
+        pass
+
+    @abstractmethod
     def process_orders(self, current_bar: MultiBar) -> None:
         pass
+
+
+class BacktestSimulationBroker(Broker):
+    """Simulated broker for backtesting."""
+
+    def new_order(
+        self,
+        symbol: str,
+        quantity: float,
+        limit: Optional[float],
+        stop: Optional[float],
+    ) -> Order:
+        assert quantity != 0, "Order quantity cannot be zero"
+
+        side = OrderSide.BUY if quantity > 0 else OrderSide.SELL
+
+        if limit is not None:
+            order_type = OrderType.LIMIT
+        elif stop is not None:
+            order_type = OrderType.STOP
+        else:
+            order_type = OrderType.MARKET
+
+        order = Order(symbol, side, quantity, order_type, limit, stop)
+        self.orders.append(order)
+
+        return order
+
+    def process_orders(self, current_bar: MultiBar) -> None:
+        pass
+
+    def __init__(self, initial_cash: float):
+        super().__init__()
+        self.cash = initial_cash
+
+        # Additional initialization for backtest simulation
+        self.equity_curve: List[float] = []
