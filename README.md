@@ -33,16 +33,6 @@ LiveBack is a Python-based framework designed for seamless backtesting and live 
    ```bash
    uv run -m unittest discover -s src/tests
    ```
-## Project Structure
-- `design.md`: Project design document
-- `requirements.uv`: Dependency list for the project
-- `main.py`: Entry point for running the framework
-- `src/`: Contains the core framework components
-  - `data/`: Data clients for historical and live data
-  - `execution/`: Execution clients for backtesting and live trading
-  - `strategy/`: Strategy base class and user-defined strategies
-  - `utils/`: Utility functions for data processing and visualization
-  - `tests/`: Unit tests for the framework
 
 ## Contributing
 Contributions are welcome! Please submit a pull request or open an issue for discussion.
