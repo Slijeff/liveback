@@ -8,9 +8,7 @@ from src.types import Order, MultiBar, Trade, Position, OrderSide, OrderType
 class Broker(ABC):
     """Abstract interface for execution clients (backtest simulation and live brokers)."""
 
-    def __init__(self, cash: float = 0.0):
-        self.cash: float = 0.0
-
+    def __init__(self):
         self.orders: List[Order] = []
         self.trades: List[Trade] = []
         self.closed_trades: List[Trade] = []
@@ -37,6 +35,13 @@ class Broker(ABC):
 class BacktestSimulationBroker(Broker):
     """Simulated broker for backtesting."""
 
+    def __init__(self, initial_cash: float):
+        super().__init__()
+        self.cash = initial_cash
+
+        # Additional initialization for backtest simulation
+        self.equity_curve: List[float] = []
+
     def new_order(
         self,
         symbol: str,
@@ -62,10 +67,3 @@ class BacktestSimulationBroker(Broker):
 
     def process_orders(self, current_bar: MultiBar) -> None:
         pass
-
-    def __init__(self, initial_cash: float):
-        super().__init__()
-        self.cash = initial_cash
-
-        # Additional initialization for backtest simulation
-        self.equity_curve: List[float] = []
